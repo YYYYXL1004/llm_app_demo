@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Conda local environments
+.conda/
+
+# Logs and runtime output
+*.log
+logs/
+
+# Model files and local Ollama data
+ollama_local/
+ollama_models/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.tgz
+*.tar.gz
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Codex/local agent metadata
+.agents/
+.codex/
