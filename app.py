@@ -164,7 +164,6 @@ def build_demo():
 
         gr.ChatInterface(
             fn=respond,
-            type="messages",
             additional_inputs=[mode, temperature, top_k, system_prompt],
             examples=[
                 ["Prompt 为什么要写角色、任务和约束？", "Chat", 0.2, 3, DEFAULT_SYSTEM_PROMPT],
@@ -181,4 +180,3 @@ if __name__ == "__main__":
     server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
     build_demo().queue().launch(server_name=server_name, server_port=server_port)
-
