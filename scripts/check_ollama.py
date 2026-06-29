@@ -12,7 +12,7 @@ def main():
         print(f"- {name}")
 
     if MODEL not in model_names:
-        print(f"\nWarning: {MODEL} is not in the model list. Run: ollama pull {MODEL}")
+        print(f"\nWarning: {MODEL} is not in the model list. Run: ollama list or check whether the model has been created.")
 
     response = client.chat.completions.create(
         model=MODEL,
@@ -25,4 +25,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

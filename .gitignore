@@ -38,3 +38,5 @@ ollama_models/
 # Codex/local agent metadata
 .agents/
 .codex/
+
+docs/codex_cli_linux_nonsudo.md

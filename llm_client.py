@@ -8,7 +8,7 @@ load_dotenv()
 
 BASE_URL = os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
 API_KEY = os.getenv("OPENAI_API_KEY", "ollama")
-MODEL = os.getenv("MODEL", "qwen3:8b")
+MODEL = os.getenv("MODEL", "Qwen3-1.7B-Q4_K_M")
 
 client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
 
@@ -34,4 +34,3 @@ def chat_completion(
 def get_assistant_text(response) -> str:
     message = response.choices[0].message
     return message.content or ""
-

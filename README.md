@@ -64,7 +64,7 @@ ollama serve
 再开一个终端拉取并检查模型：
 
 ```bash
-ollama pull qwen3:8b
+ollama create Qwen3-1.7B-Q4_K_M -f ~/apps/ollama/models/Modelfile
 ollama list
 curl http://127.0.0.1:11434/v1/models
 ```
@@ -93,7 +93,7 @@ cp .env.example .env
 ```bash
 OPENAI_BASE_URL=http://127.0.0.1:11434/v1
 OPENAI_API_KEY=ollama
-MODEL=qwen3:8b
+MODEL=Qwen3-1.7B-Q4_K_M
 ```
 
 检查 API：

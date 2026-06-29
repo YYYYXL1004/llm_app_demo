@@ -54,7 +54,7 @@ http://127.0.0.1:7860
 
 ```text
 OPENAI_BASE_URL=http://127.0.0.1:11434/v1
-MODEL=qwen3:8b
+MODEL=Qwen3-1.7B-Q4_K_M
 ```
 
 ---
