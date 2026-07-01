@@ -10,6 +10,8 @@ from rag import KnowledgeBase, format_context
 from tools import TOOL_SCHEMAS, run_tool
 
 ROOT = Path(__file__).parent
+
+# 程序启动时加载一次课程知识库。RAG 模式会从这里检索相关资料。
 KB = KnowledgeBase.from_markdown(ROOT / "data" / "kb.md")
 
 DEFAULT_SYSTEM_PROMPT = """你是一个面向大学课堂的 LLM 应用助教。
@@ -19,6 +21,7 @@ DEFAULT_SYSTEM_PROMPT = """你是一个面向大学课堂的 LLM 应用助教。
 
 
 def normalize_history(history: list[Any]) -> list[dict[str, str]]:
+    """把 Gradio 的历史记录统一转换成 OpenAI messages 格式。"""
     messages: list[dict[str, str]] = []
     for item in history or []:
         if isinstance(item, dict):
@@ -32,22 +35,27 @@ def normalize_history(history: list[Any]) -> list[dict[str, str]]:
                 messages.append({"role": "user", "content": str(user_msg)})
             if assistant_msg:
                 messages.append({"role": "assistant", "content": str(assistant_msg)})
+
+    # 只保留最近 8 条，避免上下文越来越长导致小模型变慢。
     return messages[-8:]
 
 
 def build_base_messages(system_prompt: str, history: list[Any]) -> list[dict[str, Any]]:
+    """构造每种模式都需要的 system prompt 和对话历史。"""
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT}]
     messages.extend(normalize_history(history))
     return messages
 
 
 def run_chat(message: str, history: list[Any], temperature: float, system_prompt: str) -> str:
+    """最普通的 Chatbot：用户问题直接交给模型回答。"""
     messages = build_base_messages(system_prompt, history)
     messages.append({"role": "user", "content": message})
     return get_assistant_text(chat_completion(messages, temperature=temperature))
 
 
 def run_rag(message: str, history: list[Any], temperature: float, system_prompt: str, top_k: int) -> str:
+    """RAG：先检索课程资料，再把资料和问题一起交给模型。"""
     results = KB.search(message, top_k=top_k)
     context = format_context(results)
     messages = build_base_messages(system_prompt, history)
@@ -61,15 +69,18 @@ def run_rag(message: str, history: list[Any], temperature: float, system_prompt:
             ),
         }
     )
+
     answer = get_assistant_text(chat_completion(messages, temperature=temperature))
     refs = "\n".join([f"- {result.title}，score={result.score:.3f}" for result in results]) or "- 无"
     return f"{answer}\n\n检索到的资料：\n{refs}"
 
 
 def run_tool_calling(message: str, history: list[Any], temperature: float, system_prompt: str) -> str:
+    """Tool Calling：让模型决定是否调用工具，Python 负责真正执行。"""
     messages = build_base_messages(system_prompt, history)
     messages.append({"role": "user", "content": message})
 
+    # 第一次请求带上工具 schema，让模型有机会返回 tool_calls。
     first = chat_completion(messages, temperature=temperature, tools=TOOL_SCHEMAS, tool_choice="auto")
     assistant_message = first.choices[0].message
     tool_calls = assistant_message.tool_calls or []
@@ -97,12 +108,14 @@ def run_tool_calling(message: str, history: list[Any], temperature: float, syste
             }
         )
 
+    # 第二次请求把工具结果回填给模型，让模型组织最终自然语言回答。
     second = chat_completion(messages, temperature=temperature)
     answer = get_assistant_text(second)
     return f"{answer}\n\n工具调用记录：\n" + "\n".join(tool_logs)
 
 
 def run_agent_fallback(message: str, history: list[Any], temperature: float, system_prompt: str, top_k: int) -> str:
+    """一个教学版 Agent：用简单规则演示追问、流程选择和 fallback。"""
     if len(message.strip()) < 6 or any(word in message for word in ["那个", "这个", "随便", "怎么弄"]):
         return "这个问题的信息不足。请补充目标、输入、期望输出和当前报错。课堂上这就是 Agent 的追问节点。"
 
@@ -126,6 +139,7 @@ def respond(
     top_k: int,
     system_prompt: str,
 ) -> str:
+    """Gradio 每次收到用户输入，都会调用这个函数。"""
     try:
         if mode == "RAG":
             return run_rag(message, history, temperature, system_prompt, top_k)
@@ -143,6 +157,7 @@ def respond(
 
 
 def build_demo():
+    """搭建 Gradio 页面。页面控件会作为参数传给 respond()。"""
     with gr.Blocks(title="LLM 应用基础 Demo", fill_height=True) as demo:
         gr.Markdown("# LLM 应用基础 Demo")
         gr.Markdown(f"当前模型：`{MODEL}`；API：`{BASE_URL}`")
@@ -177,6 +192,7 @@ def build_demo():
 
 
 if __name__ == "__main__":
+    # 默认只监听本机。服务器上如果要让外部浏览器访问，可以在 .env 里设置 GRADIO_SERVER_NAME=0.0.0.0。
     server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
     build_demo().queue().launch(server_name=server_name, server_port=server_port)

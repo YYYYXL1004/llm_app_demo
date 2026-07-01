@@ -107,11 +107,11 @@ curl http://127.0.0.1:11434/api/tags
 
 可能出现三种情况：
 
-| 现象                        | 说明                     | 下一步          |
-| --------------------------- | ------------------------ | --------------- |
-| 返回 JSON                   | Ollama 服务已经启动      | 直接进入第 5 节 |
-| `Connection refused`        | 命令可能有，但服务没启动 | 执行第 4 节     |
-| `ollama: command not found` | 当前账号找不到 Ollama    | 执行第 3.1 节   |
+| 现象                                    | 说明                     | 下一步          |
+| --------------------------------------- | ------------------------ | --------------- |
+| 返回 JSON                               | Ollama 服务已经启动      | 直接进入第 5 节 |
+| `could not connect to a running Ollama` | 命令可能有，但服务没启动 | 执行第 4 节     |
+| `找不到命令 “ollama”`                   | 当前账号找不到 Ollama    | 执行第 3.1 节   |
 
 ### 3.1 非 sudo 准备 Ollama
 
@@ -224,6 +224,8 @@ ollama serve
 curl http://127.0.0.1:11434/api/tags
 ```
 
+返回 *{"models":[]}* 证明服务启动成功，进行第5步。
+
 如果同一台服务器上有多人同时使用，`11434` 端口可能被别人占用。可以换端口：
 
 ```bash
@@ -332,6 +334,8 @@ FROM ./Qwen3-1.7B-Q4_K_M.gguf
 ```
 
 如果你的文件名不是这个，就把 `FROM` 后面的文件名改成你自己的实际文件名。
+
+（注：nano修改文件后，Ctrl+O -> enter确认 -> Ctrl+X退出，即保存完毕）
 
 #### 第 4 步：用 Ollama 导入模型
 
@@ -482,7 +486,7 @@ OPENAI_BASE_URL=http://127.0.0.1:11435/v1
 
 ## 8. 检查项目能否调用模型
 
-先确认上一节启动的 `ollama serve` 还开着。
+先确认之前启动的 `ollama serve` 还开着。
 
 ```bash
 python scripts/check_ollama.py
@@ -494,10 +498,10 @@ python scripts/check_ollama.py
 Checking Ollama OpenAI-compatible API: http://127.0.0.1:11434/v1
 Model: Qwen3-1.7B-Q4_K_M
 Available models:
-- Qwen3-1.7B-Q4_K_M
+- Qwen3-1.7B-Q4_K_M:latest
 
 Chat test:
-Ollama API 可用。
+是的，Ollama API 是可用的，它允许用户通过 HTTP 请求与 Llama 系列模型进行交互，但需确保已正确安装依赖并配置环境。
 ```
 
 如果提示模型不存在：
@@ -526,18 +530,6 @@ python app.py
 ```
 
 默认访问：
-
-```text
-http://127.0.0.1:7860
-```
-
-如果你在远程服务器上运行项目，浏览器在自己电脑上，可以用 SSH tunnel：
-
-```bash
-ssh -L 7860:127.0.0.1:7860 用户名@服务器IP
-```
-
-然后在自己电脑浏览器打开：
 
 ```text
 http://127.0.0.1:7860
@@ -718,6 +710,6 @@ def search_api(query: str) -> list[dict]:
 
 1. `python scripts/check_ollama.py` 成功运行的终端截图。
 2. Gradio 页面成功打开的浏览器截图，截图里能看到 Chat、RAG 或 Tool Calling 任意一次回答。
-3. 项目里的 `.env` 文件内容截图或文本，注意不要提交真实密码；本课程里 `OPENAI_API_KEY=ollama` 可以保留。
+3. 项目里的 `.env` 文件内容截图；
 
 提交前自己确认：截图能看清命令、页面或配置；模型名是 `Qwen3-1.7B-Q4_K_M`；API 地址端口和自己启动的 Ollama 端口一致。

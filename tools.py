@@ -6,6 +6,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 
+# 这份 schema 会直接传给模型，告诉模型“有哪些工具、每个工具需要什么参数”。
+# 注意：schema 只是说明书，真正执行工具的是下面的 Python 函数。
 TOOL_SCHEMAS = [
     {
         "type": "function",
@@ -60,6 +62,7 @@ TOOL_SCHEMAS = [
     },
 ]
 
+# 计算器只允许这些 AST 运算节点，避免 eval 执行任意代码。
 ALLOWED_BIN_OPS = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -76,8 +79,10 @@ ALLOWED_UNARY_OPS = {
 
 
 def safe_eval_math(expression: str) -> float | int:
+    """安全计算简单数学表达式，不允许函数调用、变量名或属性访问。"""
     if len(expression) > 100:
         raise ValueError("表达式过长")
+
     tree = ast.parse(expression, mode="eval")
 
     def eval_node(node):
@@ -97,11 +102,13 @@ def safe_eval_math(expression: str) -> float | int:
 
 
 def get_current_time(timezone: str = "Asia/Shanghai") -> dict[str, Any]:
+    """工具函数：返回指定时区的当前时间。"""
     try:
         tz = ZoneInfo(timezone)
     except Exception:
         timezone = "Asia/Shanghai"
         tz = ZoneInfo(timezone)
+
     now = datetime.now(tz)
     return {
         "timezone": timezone,
@@ -112,11 +119,13 @@ def get_current_time(timezone: str = "Asia/Shanghai") -> dict[str, Any]:
 
 
 def calculator(expression: str) -> dict[str, Any]:
+    """工具函数：计算四则运算表达式。"""
     value = safe_eval_math(expression)
     return {"expression": expression, "result": value}
 
 
 def python_function_status(tool_name: str) -> dict[str, Any]:
+    """工具函数：演示如何把已有 Python 函数包装成 Tool Calling 工具。"""
     examples = {
         "search_api": "已封装为函数：输入 query，输出结构化搜索结果。",
         "crawler": "已封装为函数：输入 url，输出正文、标题和来源。",
@@ -130,6 +139,7 @@ def python_function_status(tool_name: str) -> dict[str, Any]:
 
 
 def run_tool(name: str, arguments: dict[str, Any]) -> str:
+    """根据模型返回的工具名和参数，分发到真正的 Python 函数。"""
     if name == "get_current_time":
         result = get_current_time(arguments.get("timezone", "Asia/Shanghai"))
     elif name == "calculator":
@@ -138,5 +148,6 @@ def run_tool(name: str, arguments: dict[str, Any]) -> str:
         result = python_function_status(arguments["tool_name"])
     else:
         result = {"error": f"未知工具：{name}"}
-    return json.dumps(result, ensure_ascii=False)
 
+    # tool message 的 content 必须是字符串，所以这里把 dict 转成 JSON 字符串。
+    return json.dumps(result, ensure_ascii=False)
