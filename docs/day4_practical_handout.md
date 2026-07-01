@@ -1,58 +1,69 @@
 # Day 4 实操讲义：Ollama 部署、API 调用、RAG 与 Tool Calling
 
-> 本讲义只关注实操：在没有 sudo 权限的服务器账号下启动一个小模型服务，并把它封装成 OpenAI 兼容 API 给 Python 项目调用。  
-> 今日目标不是讲清所有 LLM 原理，而是让你跑通一次“模型服务 -> API -> Gradio Demo”的完整链路。
+> 本讲义只关注实操：在没有 sudo 权限的服务器账号下启动一个小模型服务，并把它封装成 OpenAI 兼容 API 给 Python 项目调用。
+今日目标不是讲清所有 LLM 原理，而是让你跑通一次“模型服务 \-\> API \-\> Gradio Demo”的完整链路。
 
 ---
 
-## 0. 今日完成目标
+## 0\. 今日完成目标
 
 完成 Day 4 后，你应该能做到：
 
 - 判断服务器上是否已经有可用的 Ollama
+
 - 在非 sudo 用户目录下准备 Ollama
+
 - 启动用户态 `ollama serve`
+
 - 拉取并测试一个小模型
+
 - 用 OpenAI 兼容 API 调用本地模型
+
 - 配置本项目的 `.env`
+
 - 跑通 Chat、RAG、Tool Calling 三种模式
+
 - 知道常见失败现象应该先查哪里
 
 ---
 
-## 1. 非 sudo 用户先看这里
+## 1\. 非 sudo 用户先看这里
 
 课程服务器通常不会给普通用户 sudo 权限，所以本讲义默认：
 
 - 不使用 `sudo systemctl`
+
 - 不修改系统服务
+
 - 不安装 GPU 驱动
+
 - 不写入 `/usr/local/bin`、`/usr` 等系统目录
+
 - 所有程序、模型和项目文件都放在自己的用户目录或课程目录下
 
 非 sudo 用户能做的事情：
 
-| 任务                   | 是否可做 | 说明                           |
-| ---------------------- | -------- | ------------------------------ |
-| 运行 Python 项目       | 可以     | 使用自己的 conda 环境          |
-| 启动 `ollama serve`    | 可以     | 用当前账号启动前台进程         |
-| 监听 `127.0.0.1:11434` | 可以     | 只给本机访问                   |
-| 安装系统服务           | 不可以   | 需要 sudo                      |
-| 安装或升级显卡驱动     | 不可以   | 需要管理员                     |
+|任务|是否可做|说明|
+|---|---|---|
+|运行 Python 项目|可以|使用自己的 conda 环境|
+|启动 `ollama serve`|可以|用当前账号启动前台进程|
+|监听 `127.0.0.1:11434`|可以|只给本机访问|
+|安装系统服务|不可以|需要 sudo|
+|安装或升级显卡驱动|不可以|需要管理员|
 
 如果课程服务器已经统一部署好了 Ollama，你只需要确认 API 地址，不需要自己安装。
 
 ---
 
-## 2. 项目文件结构
+## 2\. demo项目文件结构
 
-```bash
-cd llm_app_demo
-```
+写了个llm\_app\_demo的小项目，和讲义配套使用。
+
+https://github\.com/YYYYXL1004/llm\_app\_demo\.git 可以先clone到服务器或者下载到本地传到服务器上。
 
 本 demo 文件很少，主要看下面几类：
 
-```text
+```Plaintext
 llm_app_demo/
 ├── app.py                         # 页面入口和流程分发
 ├── llm_client.py                  # 模型 API 客户端
@@ -65,19 +76,19 @@ llm_app_demo/
 └── .env.example
 ```
 
-| 文件                      | 用途                                |
-| ------------------------- | ----------------------------------- |
-| `app.py`                  | 页面入口，负责四种模式的流程分发    |
-| `llm_client.py`           | 连接 Ollama 的 OpenAI 兼容 API      |
-| `rag.py`                  | 从 `data/kb.md` 检索资料            |
-| `tools.py`                | 定义工具 schema，并真正执行工具函数 |
-| `data/kb.md`              | RAG 演示知识库                      |
-| `scripts/check_ollama.py` | 检查模型 API 连通性                 |
-| `.env.example`            | 环境变量模板，复制成 `.env` 后修改  |
+|文件|用途|
+|---|---|
+|`app.py`|页面入口，负责四种模式的流程分发|
+|`llm_client.py`|连接 Ollama 的 OpenAI 兼容 API|
+|`rag.py`|从 `data/kb.md` 检索资料|
+|`tools.py`|定义工具 schema，并真正执行工具函数|
+|`data/kb.md`|RAG 演示知识库|
+|`scripts/check_ollama.py`|检查模型 API 连通性|
+|`.env.example`|环境变量模板，复制成 `.env` 后修改|
 
 整体调用关系：
 
-```text
+```Plaintext
 浏览器
 -> app.py
 -> llm_client.py
@@ -89,11 +100,11 @@ Tool Calling 模式额外调用 tools.py
 
 ---
 
-## 3. 检查服务器是否已有 Ollama
+## 3\. 检查服务器是否已有 Ollama
 
 先直接检查：
 
-```bash
+```Bash
 ollama --version
 ```
 
@@ -101,33 +112,33 @@ ollama --version
 
 再检查 API 服务是否已经启动：
 
-```bash
+```Bash
 curl http://127.0.0.1:11434/api/tags
 ```
 
 可能出现三种情况：
 
-| 现象                                    | 说明                     | 下一步          |
-| --------------------------------------- | ------------------------ | --------------- |
-| 返回 JSON                               | Ollama 服务已经启动      | 直接进入第 5 节 |
-| `could not connect to a running Ollama` | 命令可能有，但服务没启动 | 执行第 4 节     |
-| `找不到命令 “ollama”`                   | 当前账号找不到 Ollama    | 执行第 3.1 节   |
+|现象|说明|下一步|
+|---|---|---|
+|返回 JSON|Ollama 服务已经启动|直接进入第 5 节|
+|`could not connect to a running Ollama` 或者 `Failed to connect`|命令可能有，但服务没启动<br>|执行第 4 节|
+|`找不到命令 “ollama”`|当前账号找不到 Ollama|执行第 3\.1 节|
 
-### 3.1 非 sudo 准备 Ollama
+### 3\.1 非 sudo 准备 Ollama
 
 如果服务器上已经准备好了 Ollama，你可以跳过安装部分，直接从第 4 节开始启动服务。下面这段流程适合需要自己动手完成部署的人。
 
 课程服务器已经放好了 Ollama 离线安装包，首选方式是直接从本机共享目录复制，不需要自己下载。
 
-| 服务器 IP | 共享目录 |
-| --- | --- |
-| `183.175.12.68` | `/data/share/ollama_models` |
-| `202.207.12.215` | `/data/share/ollama_models` |
-| `183.175.12.113` | `/home/share/ollama_models` |
+|服务器 IP|共享目录|
+|---|---|
+|`183.175.12.68`|`/data/share/ollama_models`|
+|`202.207.12.215`|`/data/share/ollama_models`|
+|`183.175.12.113`|`/home/share/ollama_models`|
 
 先在服务器上准备目录：
 
-```bash
+```Bash
 mkdir -p ~/apps ~/apps/ollama
 ```
 
@@ -135,62 +146,68 @@ mkdir -p ~/apps ~/apps/ollama
 
 如果你在 `183.175.12.68` 或 `202.207.12.215` 上：
 
-```bash
+```Bash
 cp /data/share/ollama_models/ollama-linux-amd64.tar.zst ~/apps/
 ```
 
 如果你在 `183.175.12.113` 上：
 
-```bash
+```Bash
 cp /home/share/ollama_models/ollama-linux-amd64.tar.zst ~/apps/
 ```
 
 复制完后确认文件在不在：
 
-```bash
+```Bash
 ls -lh ~/apps/ollama-linux-amd64.tar.zst
 ```
 
-如果共享目录不可用，再使用下面的备用安装包获取方式：先在你的 Windows 电脑上把安装包下载好，再传到服务器上解压。
+如果共享目录不可用，再使用下面的备用安装包获取方式：
 
-在 Windows PowerShell 或 CMD 里执行：
+> 先在你的 Windows 电脑上把安装包下载好，再传到服务器上解压。
+> 
+> 在 Windows PowerShell 或 CMD 里执行：
+> 
+> ```PowerShell
+> curl.exe -L https://ollama.com/download/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
+> ```
+> 
+> 下载完成后，把这个文件传到服务器的某个目录，例如 `~/apps/`。从 Windows 传过去：
+> 
+> ```Bash
+> scp ollama-linux-amd64.tar.zst 你的用户名@服务器IP:~/apps/
+> ```
+> 
+> 备注：如果文件比较大，`scp` 传几分钟是正常的。
+> 
+> 
 
-```powershell
-curl.exe -L https://ollama.com/download/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
-```
 
-下载完成后，把这个文件传到服务器的某个目录，例如 `~/apps/`。从 Windows 传过去：
-
-```bash
-scp ollama-linux-amd64.tar.zst 你的用户名@服务器IP:~/apps/
-```
-
-备注：如果文件比较大，`scp` 传几分钟是正常的。
 
 登录服务器后，进入文件所在目录并解压：
 
-```bash
+```Bash
 cd ~/apps
 tar --use-compress-program=unzstd -xvf ollama-linux-amd64.tar.zst -C ~/apps/ollama
 ```
 
 如果你的服务器没有 `unzstd`，可以先试：
 
-```bash
+```Bash
 zstd -d ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar
 tar -xvf ollama-linux-amd64.tar -C ~/apps/ollama
 ```
 
 解压后，把命令加入当前终端的 `PATH`：
 
-```bash
+```Bash
 export PATH="$HOME/apps/ollama/bin:$PATH"
 ollama --version
 ```
 
 如果想让新开的终端也默认能找到 `ollama`，把这条路径写进 `~/.bashrc`：
 
-```bash
+```Bash
 echo 'export PATH="$HOME/apps/ollama/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -198,68 +215,71 @@ source ~/.bashrc
 如果这一步失败，优先确认下面几件事；自己无法确认时再联系课程支持人员或服务器管理员：
 
 - Windows 上下载下来的文件是否真的是 `tar.zst`
+
 - 传到服务器时文件有没有损坏
-- 当前机器架构是否为 Linux x86_64
+
+- 当前机器架构是否为 Linux x86\_64
+
 - 当前账号是否有 `~/apps/ollama` 的读写权限
 
 ---
 
-## 4. 用户态启动 Ollama 服务
+## 4\. 用户态启动 Ollama 服务
 
 普通用户不需要 `systemctl`，直接启动前台进程：
 
-```bash
+```Bash
 export OLLAMA_HOST=127.0.0.1:11434
 ollama serve
 ```
 
 这个终端会被服务占用，不要关闭。
 
-后面的第 5 节到第 9 节都默认这个 `ollama serve` 还在运行。  
+后面的第 5 节到第 9 节都默认这个 `ollama serve` 还在运行。
 如果你把这个终端关掉了，后面检查 API 时就会连不上。
 
 再开一个新的终端，测试服务：
 
-```bash
+```Bash
 curl http://127.0.0.1:11434/api/tags
 ```
 
-返回 *{"models":[]}* 证明服务启动成功，进行第5步。
+返回 *\{"models":\[\]\}* 证明服务启动成功，进行第5步。
 
 如果同一台服务器上有多人同时使用，`11434` 端口可能被别人占用。可以换端口：
 
-```bash
+```Bash
 export OLLAMA_HOST=127.0.0.1:11435
 ollama serve
 ```
 
 后续项目里的 API 地址也要改成：
 
-```text
+```Plaintext
 http://127.0.0.1:11435/v1
 ```
 
 ---
 
-## 5. 导入并测试课程模型
+## 5\. 导入并测试课程模型
 
-这一节只保留一条标准路线：`Qwen3-1.7B-Q4_K_M.gguf` -> `ollama create` -> `ollama run`。
+这一节只保留一条标准路线：`Qwen3-1.7B-Q4_K_M.gguf` \-\> `ollama create` \-\> `ollama run`。
 
-### 5.1 方式一：从服务器共享目录复制 GGUF 后导入
+### 5\.1 方式一：从服务器共享目录复制 GGUF 后导入
 
 课程服务器已经放好了 `Qwen3-1.7B-Q4_K_M.gguf`，首选方式是直接从本机共享目录复制到自己的模型目录。
 
-| 服务器 IP | 共享目录 |
-| --- | --- |
-| `183.175.12.68` | `/data/share/ollama_models` |
-| `202.207.12.215` | `/data/share/ollama_models` |
-| `183.175.12.113` | `/home/share/ollama_models` |
+|服务器 IP|共享目录|
+|---|---|
+|`183.175.12.68`|`/data/share/ollama_models`|
+|`202.207.12.215`|`/data/share/ollama_models`|
+|`183.175.12.113`|`/home/share/ollama_models`|
 
 #### 第 1 步：创建模型目录
 
 先在服务器上创建一个放模型的目录：
 
-```bash
+```Bash
 mkdir -p ~/apps/ollama/models
 ```
 
@@ -267,81 +287,89 @@ mkdir -p ~/apps/ollama/models
 
 如果你在 `183.175.12.68` 或 `202.207.12.215` 上：
 
-```bash
+```Bash
 cp /data/share/ollama_models/Qwen3-1.7B-Q4_K_M.gguf ~/apps/ollama/models/
 ```
 
 如果你在 `183.175.12.113` 上：
 
-```bash
+```Bash
 cp /home/share/ollama_models/Qwen3-1.7B-Q4_K_M.gguf ~/apps/ollama/models/
 ```
 
 复制完后确认文件在不在：
 
-```bash
+```Bash
 ls -lh ~/apps/ollama/models/Qwen3-1.7B-Q4_K_M.gguf
 ```
 
-如果共享目录不可用，再使用下面的备用方式：在 Windows 上下载 GGUF 文件，然后用 `scp` 传到服务器。
-
-在 Windows 上新建一个下载目录，比如：
-
-```text
-D:\ollama-models\
-```
-
-打开 PowerShell 或 CMD，切到这个目录：
-
-```powershell
-cd D:\ollama-models
-```
-
-然后下载或放入课程提供的 `Qwen3-1.7B-Q4_K_M.gguf` 文件。模型信息/原始权重入口：
-
-- [ModelScope 的 Qwen3-1.7B-GGUF 文件页](https://modelscope.cn/models/unsloth/Qwen3-1.7B-GGUF/files)
-
-把 GGUF 从 Windows 传到服务器：
-
-```powershell
-scp D:\ollama-models\Qwen3-1.7B-Q4_K_M.gguf 你的用户名@服务器IP:~/apps/ollama/models/
-```
-
-传完后，到服务器上确认文件在不在：
-
-```bash
-ls -lh ~/apps/ollama/models/
-```
+> 如果共享目录不可用，再使用下面的备用方式：在 Windows 上下载 GGUF 文件，然后用 `scp` 传到服务器。
+> 
+> 在 Windows 上新建一个下载目录，比如：
+> 
+> ```Plaintext
+> D:\ollama-models\
+> ```
+> 
+> 打开 PowerShell 或 CMD，切到这个目录：
+> 
+> ```PowerShell
+> cd D:\ollama-models
+> ```
+> 
+> 然后下载或放入课程提供的 `Qwen3-1.7B-Q4_K_M.gguf` 文件。
+> 
+> 这些开源模型权重文件一般都在 Hugging Face上或者国内的平替ModelScope社区上面，如果之后有更大模型的需求，大家可以自行下载，但是要考虑服务器显存是否支持🫣。
+> 
+> 模型信息/原始权重入口：
+> 
+> - [ModelScope 的 Qwen3\-1\.7B\-GGUF 文件页](https://modelscope.cn/models/unsloth/Qwen3-1.7B-GGUF/files)
+> 
+> 把 GGUF 从 Windows 传到服务器：
+> 
+> ```PowerShell
+> scp D:\ollama-models\Qwen3-1.7B-Q4_K_M.gguf 你的用户名@服务器IP:~/apps/ollama/models/
+> ```
+> 
+> 传完后，到服务器上确认文件在不在：
+> 
+> ```Bash
+> ls -lh ~/apps/ollama/models/
+> ```
+> 
+> 
 
 #### 第 3 步：在服务器上写 Modelfile
 
 在服务器上进入模型目录：
 
-```bash
+```Bash
 cd ~/apps/ollama/models
 ```
 
 新建一个 `Modelfile`：
 
-```bash
+```Bash
 nano Modelfile
 ```
 
 写入下面内容：
 
-```text
+```Plaintext
 FROM ./Qwen3-1.7B-Q4_K_M.gguf
 ```
 
 如果你的文件名不是这个，就把 `FROM` 后面的文件名改成你自己的实际文件名。
 
-（注：nano修改文件后，Ctrl+O -> enter确认 -> Ctrl+X退出，即保存完毕）
+（注：nano修改文件后，Ctrl\+O \-\> enter确认 \-\> Ctrl\+X退出，即保存完毕）
+
+- nano是一个终端的文本编辑器，相比于vim，对于新手来说更容易上手。 [nano使用教程](https://cloud.tencent.com/developer/article/1935086)
 
 #### 第 4 步：用 Ollama 导入模型
 
 在 `~/apps/ollama/models` 目录下执行：
 
-```bash
+```Bash
 ollama create Qwen3-1.7B-Q4_K_M -f Modelfile
 ```
 
@@ -351,13 +379,13 @@ ollama create Qwen3-1.7B-Q4_K_M -f Modelfile
 
 导入完成后，直接测试：
 
-```bash
+```Bash
 ollama run Qwen3-1.7B-Q4_K_M
 ```
 
 输入一句话，比如：
 
-```text
+```Plaintext
 你好，简单介绍一下你自己。
 ```
 
@@ -365,54 +393,57 @@ ollama run Qwen3-1.7B-Q4_K_M
 
 这条路线就是本课程的标准路线。
 
-### 5.2 方式二：直接使用课程预置模型
+### 5\.2 方式二：直接使用课程预置模型
 
 如果服务器上已经准备好了这个模型，你直接测试交互。
 
 测试交互：
 
-```bash
+```Bash
 ollama run Qwen3-1.7B-Q4_K_M
 ```
 
 输入：
 
-```text
+```Plaintext
 用一句话介绍 RAG。
 ```
 
 能正常回答，说明模型本身可用。输入 `/bye` 退出。
 
-### 5.3 模型大小和机器要求
+### 5\.3 模型大小和机器要求
 
-对 2080Ti 这类 11GB 显存的机器，这份 `Qwen3-1.7B-Q4_K_M.gguf` 是比较均衡的选择。
+对 2080Ti 这类 11GB 显存的机器，这份 `Qwen3-1.7B-Q4_K_M.gguf` 是比较均衡的选择。（实测跑起来需要显存5GB左右）
 
 课堂实践里可以先按这个经验值准备：
 
 - 11GB 显存：优先选 `Qwen3-1.7B-Q4_K_M`
+
 - 纯 CPU：能跑，但速度会慢
 
 这门实践课后面的示例都默认使用这个模型。
 
 ---
 
-## 6. 测试 OpenAI 兼容 API
+## 6\. 测试 OpenAI 兼容 API
+
+[OpenAI API 格式规范与实现指南](https://www.markqq.com/posts/b4aa3e54.html)
 
 Ollama 的 OpenAI 兼容 API 地址格式是：
 
-```text
+```Plaintext
 http://127.0.0.1:11434/v1
 ```
 
 先看模型列表：
 
-```bash
+```Bash
 curl http://127.0.0.1:11434/v1/models
 ```
 
-再测试聊天接口：
+再测试聊天接口：（[curl教程](https://www.runoob.com/linux/linux-comm-curl.html)）
 
-```bash
+```Bash
 curl http://127.0.0.1:11434/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
@@ -428,47 +459,49 @@ curl http://127.0.0.1:11434/v1/chat/completions \
 
 ---
 
-## 7. 配置 Python 项目
+## 7\. 配置 Python 项目
 
 回到项目目录：
 
-```bash
+```Bash
 cd llm_app_demo
 ```
 
 激活你本地已经准备好的 conda 环境：
 
-```bash
+```Bash
 conda activate 你的环境名
 ```
 
 安装依赖：
 
-```bash
+```Bash
 pip install -r requirements.txt
 ```
 
-如果你在服务器上直接装包时报 `SSLEOFError`、`Could not fetch URL`，优先换成国内镜像源再装：
-
-```bash
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
-```
-
-你也可以把镜像源写成默认配置，这样以后每次 `pip install` 都会先走镜像：
-
-```bash
-pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-```
+> 如果你在服务器上直接装包时报 `SSLEOFError`、`Could not fetch URL`，优先换成国内镜像源再装：
+> 
+> ```Bash
+> pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+> ```
+> 
+> 你也可以把镜像源写成默认配置，这样以后每次 `pip install` 都会先走镜像：
+> 
+> ```Bash
+> pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+> ```
+> 
+> 
 
 复制环境变量：
 
-```bash
+```Bash
 cp .env.example .env
 ```
 
 编辑 `.env`：
 
-```text
+```Plaintext
 OPENAI_BASE_URL=http://127.0.0.1:11434/v1
 OPENAI_API_KEY=ollama
 MODEL=Qwen3-1.7B-Q4_K_M
@@ -478,23 +511,23 @@ GRADIO_SERVER_PORT=7860
 
 如果你的 Ollama 用的是 `11435`，这里也要改成：
 
-```text
+```Plaintext
 OPENAI_BASE_URL=http://127.0.0.1:11435/v1
 ```
 
 ---
 
-## 8. 检查项目能否调用模型
+## 8\. 检查项目能否调用模型
 
 先确认之前启动的 `ollama serve` 还开着。
 
-```bash
+```Bash
 python scripts/check_ollama.py
 ```
 
 正常情况下会看到：
 
-```text
+```Plaintext
 Checking Ollama OpenAI-compatible API: http://127.0.0.1:11434/v1
 Model: Qwen3-1.7B-Q4_K_M
 Available models:
@@ -506,7 +539,7 @@ Chat test:
 
 如果提示模型不存在：
 
-```bash
+```Bash
 ollama list
 ollama create Qwen3-1.7B-Q4_K_M -f ~/apps/ollama/models/Modelfile
 ```
@@ -515,7 +548,7 @@ ollama create Qwen3-1.7B-Q4_K_M -f ~/apps/ollama/models/Modelfile
 
 如果提示连接失败：
 
-```bash
+```Bash
 curl http://127.0.0.1:11434/api/tags
 ```
 
@@ -523,31 +556,37 @@ curl http://127.0.0.1:11434/api/tags
 
 ---
 
-## 9. 启动 Gradio Demo
+## 9\. 启动 Gradio Demo
 
-```bash
+[Gradio教程](https://gradio.org.cn/guides/quickstart) （感兴趣的可以看，我们这里只是演示一下怎么使用）
+
+```Bash
 python app.py
 ```
 
-默认访问：
+默认访问：http://127\.0\.0\.1:7860
 
-```text
-http://127.0.0.1:7860
+如果出现本机访问上面网页，一直在加载的情况。
+
+重新使用下面的命令启动程序：
+
+```Python
+GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python app.py
 ```
+
+然后访问：http://183\.175\.12\.68:7860/  
+
+**注：185\.175\.12\.68 需要修改成自己服务器的ip**
 
 ---
 
-## 10. 页面演示 1：普通 Chat 与 Prompt
+## 10\. 页面演示 1：普通 Chat 与 Prompt
 
-页面模式选择：
-
-```text
-Chat
-```
+页面模式选择： Chat
 
 输入：
 
-```text
+```Plaintext
 Prompt 为什么要写角色、任务和约束？
 ```
 
@@ -555,7 +594,7 @@ Prompt 为什么要写角色、任务和约束？
 
 然后修改页面里的 `System Prompt`：
 
-```text
+```Plaintext
 你是严谨的课程助教。回答必须分三点，每点不超过 30 字。不确定就说不知道。
 ```
 
@@ -564,34 +603,34 @@ Prompt 为什么要写角色、任务和约束？
 这一步强调：
 
 - Prompt 可以改变语气、结构和输出格式
+
 - Prompt 可以设置“不知道就说不知道”
+
 - Prompt 不能让模型自动知道私有资料或实时信息
 
 ---
 
-## 11. 页面演示 2：RAG
+## 11\. 页面演示 2：RAG
 
-页面模式选择：
+[All\-in\-RAG \| 大模型应用开发实战:RAG技术全栈指南](https://datawhalechina.github.io/all-in-rag/#/)
 
-```text
-RAG
-```
+页面模式选择：RAG
 
 输入：
 
-```text
+```Plaintext
 如何把任意已有 Python 函数接入 Tool Calling？
 ```
 
 观察页面回答底部的：
 
-```text
+```Plaintext
 检索到的资料：
 ```
 
 本项目的 RAG 流程：
 
-```text
+```Plaintext
 用户问题
 -> rag.py 从 data/kb.md 检索相关片段
 -> app.py 把片段拼进 Prompt
@@ -605,44 +644,40 @@ RAG 要解决的是“模型缺少私有知识或课程资料”的问题。
 
 ---
 
-## 12. 页面演示 3：Tool Calling
+## 12\. 页面演示 3：Tool Calling
 
-页面模式选择：
-
-```text
-Tool Calling
-```
+页面模式选择：Tool Calling
 
 输入：
 
-```text
+```Plaintext
 帮我计算 23*17+9，并告诉我 Asia/Shanghai 当前时间。
 ```
 
 正常情况下，回答底部会出现：
 
-```text
+```Plaintext
 工具调用记录：
 ```
 
 本项目提供了三个工具：
 
-| 工具                     | 作用                     |
-| ------------------------ | ------------------------ |
-| `calculator`             | 安全四则运算             |
-| `get_current_time`       | 查询指定时区当前时间     |
-| `python_function_status` | 示例：查询已有函数接入状态 |
+|工具|作用|
+|---|---|
+|`calculator`|安全四则运算|
+|`get_current_time`|查询指定时区当前时间|
+|`python_function_status`|示例：查询已有函数接入状态|
 
 Tool Calling 的关键点：
 
-```text
+```Plaintext
 模型只负责决定是否调用工具和填参数
 Python 后端才真正执行工具
 ```
 
 如果模型没有调用工具，页面会提示：
 
-```text
+```Plaintext
 本次模型没有发起 tool call
 ```
 
@@ -650,11 +685,11 @@ Python 后端才真正执行工具
 
 ---
 
-## 13. 如何把任意已有 Python 函数接入 Tool Calling
+## 13\. 如何把任意已有 Python 函数接入 Tool Calling
 
 假设你已经有一个普通 Python 函数：
 
-```python
+```Python
 def search_api(query: str) -> list[dict]:
     ...
 ```
@@ -662,54 +697,67 @@ def search_api(query: str) -> list[dict]:
 接入步骤：
 
 1. 保持它是一个清晰的普通函数。
+
 2. 在 `tools.py` 里写一个 JSON Schema，告诉模型工具名、参数和用途。
+
 3. 把 schema 加入 `TOOL_SCHEMAS`。
+
 4. 在 `run_tool()` 里根据工具名调用真实函数。
+
 5. 在 `app.py` 里把 `TOOL_SCHEMAS` 传给模型。
+
 6. 模型返回 tool call 后，由 Python 执行工具。
+
 7. 工具结果作为 `tool` message 回填给模型。
 
 关键原则：
 
-```text
+```Plaintext
 模型不能直接访问你的系统，只能通过你暴露的函数边界访问。
 ```
 
 ---
 
-## 14. LLM 常见失败案例
+## 14\. LLM 常见失败案例
 
-| 失败现象       | 常见原因                    | 工程处理                       |
-| -------------- | --------------------------- | ------------------------------ |
-| 编造命令或事实 | 模型缺资料                  | 用 RAG、引用来源               |
-| 没按 JSON 输出 | 格式约束不够或模型能力不足  | 结构化输出、校验、重试         |
-| 没调用工具     | 小模型 tool calling 不稳定  | 改 Prompt、换模型、写 fallback |
-| 工具参数错     | schema 不清楚或用户信息缺失 | 参数校验、追问                 |
-| 回答太慢       | 模型太大或上下文太长        | 换小模型、减少 top_k           |
-| 连接失败       | 服务没启动或端口不对        | 查 `ollama serve` 和 `.env`    |
+|失败现象|常见原因|工程处理|
+|---|---|---|
+|编造命令或事实|模型缺资料|用 RAG、引用来源|
+|没按 JSON 输出|格式约束不够或模型能力不足|结构化输出、校验、重试|
+|没调用工具|小模型 tool calling 不稳定|改 Prompt、换模型、写 fallback|
+|工具参数错|schema 不清楚或用户信息缺失|参数校验、追问|
+|回答太慢|模型太大或上下文太长|换小模型、减少 top\_k|
+|连接失败|服务没启动或端口不对|查 `ollama serve` 和 `.env`|
 
 ---
 
-## 15. 今日检查清单
+## 15\. 今日检查清单
 
 结束前确认：
 
 - `ollama serve` 正在运行
+
 - `ollama list` 能看到模型
+
 - `curl http://127.0.0.1:11434/v1/models` 有返回
+
 - `.env` 的 `OPENAI_BASE_URL` 和端口正确
+
 - `python scripts/check_ollama.py` 能返回聊天测试
+
 - `python app.py` 能打开 Gradio 页面
+
 - Chat、RAG、Tool Calling 至少各跑通一次
 
 ---
 
-## 16. 今日提交内容
+## 16\. 今日提交内容
 
 今天只提交 3 样东西，不需要写实验记录：
 
 1. `python scripts/check_ollama.py` 成功运行的终端截图。
-2. Gradio 页面成功打开的浏览器截图，截图里能看到 Chat、RAG 或 Tool Calling 任意一次回答。
-3. 项目里的 `.env` 文件内容截图；
 
-提交前自己确认：截图能看清命令、页面或配置；模型名是 `Qwen3-1.7B-Q4_K_M`；API 地址端口和自己启动的 Ollama 端口一致。
+2. Gradio 页面成功打开的浏览器截图，截图里能看到 Chat、RAG 或 Tool Calling 任意一次回答。
+
+3. 自己封装一个小工具，让大模型通过Tool Calling调用，提交聊天截图。（比如自己封装一个查询天气这样功能的函数等等）
+
