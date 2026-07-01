@@ -75,7 +75,7 @@ def run_tool_calling(message: str, history: list[Any], temperature: float, syste
     tool_calls = assistant_message.tool_calls or []
 
     if not tool_calls:
-        return (assistant_message.content or "") + "\n\n说明：本次模型没有发起 tool call。可以换更强的模型，或改问需要精确计算、查时间、查 Day 3 工具状态的问题。"
+        return (assistant_message.content or "") + "\n\n说明：本次模型没有发起 tool call。可以换更强的模型，或改问需要精确计算、查时间、查已有 Python 函数状态的问题。"
 
     messages.append(assistant_message.model_dump(exclude_none=True))
     tool_logs = []
@@ -107,7 +107,7 @@ def run_agent_fallback(message: str, history: list[Any], temperature: float, sys
         return "这个问题的信息不足。请补充目标、输入、期望输出和当前报错。课堂上这就是 Agent 的追问节点。"
 
     try:
-        if any(word in message.lower() for word in ["计算", "time", "时间", "day 3", "day3"]):
+        if any(word in message.lower() for word in ["计算", "time", "时间", "函数", "function", "工具"]):
             return run_tool_calling(message, history, temperature, system_prompt)
         return run_rag(message, history, temperature, system_prompt, top_k)
     except Exception as exc:
@@ -167,7 +167,7 @@ def build_demo():
             additional_inputs=[mode, temperature, top_k, system_prompt],
             examples=[
                 ["Prompt 为什么要写角色、任务和约束？", "Chat", 0.2, 3, DEFAULT_SYSTEM_PROMPT],
-                ["如何把 Day 3 工具接入 LLM？", "RAG", 0.2, 3, DEFAULT_SYSTEM_PROMPT],
+                ["如何把任意已有 Python 函数接入 Tool Calling？", "RAG", 0.2, 3, DEFAULT_SYSTEM_PROMPT],
                 ["帮我计算 23*17+9，并告诉我 Asia/Shanghai 当前时间。", "Tool Calling", 0.1, 3, DEFAULT_SYSTEM_PROMPT],
                 ["这个怎么弄？", "Agent Fallback", 0.2, 3, DEFAULT_SYSTEM_PROMPT],
             ],

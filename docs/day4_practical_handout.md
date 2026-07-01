@@ -117,7 +117,41 @@ curl http://127.0.0.1:11434/api/tags
 
 如果服务器上已经准备好了 Ollama，你可以跳过安装部分，直接从第 4 节开始启动服务。下面这段流程适合需要自己动手完成部署的人。
 
-如果服务器上直接下载 Ollama 比较麻烦，推荐先在你的 Windows 电脑上把安装包下载好，再传到服务器上解压。
+课程服务器已经放好了 Ollama 离线安装包，首选方式是直接从本机共享目录复制，不需要自己下载。
+
+| 服务器 IP | 共享目录 |
+| --- | --- |
+| `183.175.12.68` | `/data/share/ollama_models` |
+| `202.207.12.215` | `/data/share/ollama_models` |
+| `183.175.12.113` | `/home/share/ollama_models` |
+
+先在服务器上准备目录：
+
+```bash
+mkdir -p ~/apps ~/apps/ollama
+```
+
+然后根据你登录的服务器选择对应共享目录，把安装包复制到自己的目录。
+
+如果你在 `183.175.12.68` 或 `202.207.12.215` 上：
+
+```bash
+cp /data/share/ollama_models/ollama-linux-amd64.tar.zst ~/apps/
+```
+
+如果你在 `183.175.12.113` 上：
+
+```bash
+cp /home/share/ollama_models/ollama-linux-amd64.tar.zst ~/apps/
+```
+
+复制完后确认文件在不在：
+
+```bash
+ls -lh ~/apps/ollama-linux-amd64.tar.zst
+```
+
+如果共享目录不可用，再使用下面的备用安装包获取方式：先在你的 Windows 电脑上把安装包下载好，再传到服务器上解压。
 
 在 Windows PowerShell 或 CMD 里执行：
 
@@ -125,13 +159,7 @@ curl http://127.0.0.1:11434/api/tags
 curl.exe -L https://ollama.com/download/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
 ```
 
-下载完成后，把这个文件传到服务器的某个目录，例如 `~/apps/`。先在服务器上准备目录：
-
-```bash
-mkdir -p ~/apps ~/apps/ollama
-```
-
-然后从 Windows 传过去：
+下载完成后，把这个文件传到服务器的某个目录，例如 `~/apps/`。从 Windows 传过去：
 
 ```bash
 scp ollama-linux-amd64.tar.zst 你的用户名@服务器IP:~/apps/
@@ -215,13 +243,47 @@ http://127.0.0.1:11435/v1
 
 这一节只保留一条标准路线：`Qwen3-1.7B-Q4_K_M.gguf` -> `ollama create` -> `ollama run`。
 
-### 5.1 方式一：用 GGUF 导入
+### 5.1 方式一：从服务器共享目录复制 GGUF 后导入
 
-下面这套流程按 Windows 电脑 + Linux 服务器来写。
+课程服务器已经放好了 `Qwen3-1.7B-Q4_K_M.gguf`，首选方式是直接从本机共享目录复制到自己的模型目录。
 
-#### 第 1 步：在 Windows 上下载 GGUF 文件
+| 服务器 IP | 共享目录 |
+| --- | --- |
+| `183.175.12.68` | `/data/share/ollama_models` |
+| `202.207.12.215` | `/data/share/ollama_models` |
+| `183.175.12.113` | `/home/share/ollama_models` |
 
-先在你的 Windows 电脑上新建一个下载目录，比如：
+#### 第 1 步：创建模型目录
+
+先在服务器上创建一个放模型的目录：
+
+```bash
+mkdir -p ~/apps/ollama/models
+```
+
+#### 第 2 步：从共享目录复制 GGUF
+
+如果你在 `183.175.12.68` 或 `202.207.12.215` 上：
+
+```bash
+cp /data/share/ollama_models/Qwen3-1.7B-Q4_K_M.gguf ~/apps/ollama/models/
+```
+
+如果你在 `183.175.12.113` 上：
+
+```bash
+cp /home/share/ollama_models/Qwen3-1.7B-Q4_K_M.gguf ~/apps/ollama/models/
+```
+
+复制完后确认文件在不在：
+
+```bash
+ls -lh ~/apps/ollama/models/Qwen3-1.7B-Q4_K_M.gguf
+```
+
+如果共享目录不可用，再使用下面的备用方式：在 Windows 上下载 GGUF 文件，然后用 `scp` 传到服务器。
+
+在 Windows 上新建一个下载目录，比如：
 
 ```text
 D:\ollama-models\
@@ -233,29 +295,11 @@ D:\ollama-models\
 cd D:\ollama-models
 ```
 
-然后下载一个 `Qwen3-1.7B-Q4_K_M.gguf` 文件。这个课程后面的示例默认就用这个文件。
-
-```text
-Qwen3-1.7B-Q4_K_M.gguf
-```
-
-如果你手上已经有课程提供的 GGUF 文件，也可以直接放到这个目录里，不必重新下载。
-
-模型信息/原始权重入口：
+然后下载或放入课程提供的 `Qwen3-1.7B-Q4_K_M.gguf` 文件。模型信息/原始权重入口：
 
 - [ModelScope 的 Qwen3-1.7B-GGUF 文件页](https://modelscope.cn/models/unsloth/Qwen3-1.7B-GGUF/files)
 
-你只需要从这个页面下载 `Qwen3-1.7B-Q4_K_M.gguf`。这份讲义后面只使用这一份模型文件，不再使用其他备选模型。
-
-#### 第 2 步：把 GGUF 传到服务器
-
-先在服务器上创建一个放模型的目录：
-
-```bash
-mkdir -p ~/apps/ollama/models
-```
-
-然后在 Windows 上执行 `scp`，把 GGUF 传到服务器：
+把 GGUF 从 Windows 传到服务器：
 
 ```powershell
 scp D:\ollama-models\Qwen3-1.7B-Q4_K_M.gguf 你的用户名@服务器IP:~/apps/ollama/models/
@@ -544,7 +588,7 @@ RAG
 输入：
 
 ```text
-如何把 Day 3 工具接入 LLM？
+如何把任意已有 Python 函数接入 Tool Calling？
 ```
 
 观察页面回答底部的：
@@ -591,11 +635,11 @@ Tool Calling
 
 本项目提供了三个工具：
 
-| 工具               | 作用                    |
-| ------------------ | ----------------------- |
-| `calculator`       | 安全四则运算            |
-| `get_current_time` | 查询指定时区当前时间    |
-| `day3_tool_status` | 模拟调用 Day 3 工具状态 |
+| 工具                     | 作用                     |
+| ------------------------ | ------------------------ |
+| `calculator`             | 安全四则运算             |
+| `get_current_time`       | 查询指定时区当前时间     |
+| `python_function_status` | 示例：查询已有函数接入状态 |
 
 Tool Calling 的关键点：
 
@@ -614,9 +658,9 @@ Python 后端才真正执行工具
 
 ---
 
-## 13. 如何把 Day 3 工具接入 LLM
+## 13. 如何把任意已有 Python 函数接入 Tool Calling
 
-假设 Day 3 已经写好了一个普通 Python 函数：
+假设你已经有一个普通 Python 函数：
 
 ```python
 def search_api(query: str) -> list[dict]:
@@ -665,3 +709,15 @@ def search_api(query: str) -> list[dict]:
 - `python scripts/check_ollama.py` 能返回聊天测试
 - `python app.py` 能打开 Gradio 页面
 - Chat、RAG、Tool Calling 至少各跑通一次
+
+---
+
+## 16. 今日提交内容
+
+今天只提交 3 样东西，不需要写实验记录：
+
+1. `python scripts/check_ollama.py` 成功运行的终端截图。
+2. Gradio 页面成功打开的浏览器截图，截图里能看到 Chat、RAG 或 Tool Calling 任意一次回答。
+3. 项目里的 `.env` 文件内容截图或文本，注意不要提交真实密码；本课程里 `OPENAI_API_KEY=ollama` 可以保留。
+
+提交前自己确认：截图能看清命令、页面或配置；模型名是 `Qwen3-1.7B-Q4_K_M`；API 地址端口和自己启动的 Ollama 端口一致。

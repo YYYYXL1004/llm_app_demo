@@ -44,14 +44,14 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "day3_tool_status",
-            "description": "模拟调用 Day 3 已完成的业务工具，返回工具接入状态。",
+            "name": "python_function_status",
+            "description": "示例：查询某个已有 Python 函数的 Tool Calling 接入状态。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "tool_name": {
                         "type": "string",
-                        "description": "Day 3 工具名，例如 search_api、crawler、database_query。",
+                        "description": "已有 Python 函数名，例如 search_api、crawler、database_query。",
                     }
                 },
                 "required": ["tool_name"],
@@ -116,7 +116,7 @@ def calculator(expression: str) -> dict[str, Any]:
     return {"expression": expression, "result": value}
 
 
-def day3_tool_status(tool_name: str) -> dict[str, Any]:
+def python_function_status(tool_name: str) -> dict[str, Any]:
     examples = {
         "search_api": "已封装为函数：输入 query，输出结构化搜索结果。",
         "crawler": "已封装为函数：输入 url，输出正文、标题和来源。",
@@ -134,8 +134,8 @@ def run_tool(name: str, arguments: dict[str, Any]) -> str:
         result = get_current_time(arguments.get("timezone", "Asia/Shanghai"))
     elif name == "calculator":
         result = calculator(arguments["expression"])
-    elif name == "day3_tool_status":
-        result = day3_tool_status(arguments["tool_name"])
+    elif name == "python_function_status":
+        result = python_function_status(arguments["tool_name"])
     else:
         result = {"error": f"未知工具：{name}"}
     return json.dumps(result, ensure_ascii=False)

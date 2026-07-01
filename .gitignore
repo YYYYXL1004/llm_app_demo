@@ -40,3 +40,4 @@ ollama_models/
 .codex/
 
 docs/codex_cli_linux_nonsudo.md
+docs/plan.md
